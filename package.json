@@ -1,0 +1,30 @@
+{
+  "name": "component-refactor",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @component-refactor/web dev",
+    "build": "pnpm --filter @component-refactor/web build",
+    "preview": "pnpm --filter @component-refactor/web preview",
+    "lint": "pnpm --filter @component-refactor/web lint",
+    "format": "pnpm --filter @component-refactor/web format",
+    "format:check": "pnpm --filter @component-refactor/web format:check",
+    "test": "pnpm --filter @component-refactor/web test",
+    "typecheck": "pnpm --filter @component-refactor/web typecheck",
+    "dev:all": "pnpm -r --parallel dev",
+    "build:all": "pnpm -r build",
+    "lint:all": "pnpm -r lint",
+    "format:all": "pnpm -r format",
+    "test:all": "pnpm -r test",
+    "typecheck:all": "pnpm -r typecheck",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}
