@@ -1,13 +1,12 @@
-import type { Recommendation } from '@/types/product';
-import { apiFetch } from './client';
+import { RecommendationListSchema, type Recommendation } from '@/types/product';
+import { requestJson } from './client';
 
-export async function getRecommendations(
+export function getRecommendations(
   productId: string,
   category: string,
 ): Promise<Recommendation[]> {
-  const res = await apiFetch(
-    `/api/recommendations?productId=${productId}&category=${category}`,
+  return requestJson(
+    `/api/recommendations?productId=${encodeURIComponent(productId)}&category=${encodeURIComponent(category)}`,
+    RecommendationListSchema,
   );
-
-  return res.json();
 }

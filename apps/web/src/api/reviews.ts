@@ -1,11 +1,9 @@
-import type { Review } from '@/types/product';
-import { apiFetch } from './client';
+import { ReviewListSchema, type Review } from '@/types/product';
+import { requestJson } from './client';
 
-export async function getReviews(
-  productId: string,
-  sort: string,
-): Promise<Review[]> {
-  const res = await apiFetch(`/api/products/${productId}/reviews?sort=${sort}`);
-
-  return res.json();
+export function getReviews(productId: string, sort: string): Promise<Review[]> {
+  return requestJson(
+    `/api/products/${encodeURIComponent(productId)}/reviews?sort=${encodeURIComponent(sort)}`,
+    ReviewListSchema,
+  );
 }

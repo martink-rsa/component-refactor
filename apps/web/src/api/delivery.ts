@@ -1,22 +1,18 @@
-import { apiFetch } from './client';
+import { z } from 'zod';
 
-export interface DeliveryEstimate {
-  days: number;
-}
+import { requestJson } from './client';
 
-export async function getDeliveryEstimate(
+export const DeliveryEstimateSchema = z.object({
+  days: z.number(),
+});
+export type DeliveryEstimate = z.infer<typeof DeliveryEstimateSchema>;
+
+export function getDeliveryEstimate(
   productId: string,
   postcode: string,
 ): Promise<DeliveryEstimate> {
-  const res = await apiFetch(
-    `/api/delivery/estimate?postcode=${postcode}&productId=${productId}`,
+  return requestJson(
+    `/api/delivery/estimate?postcode=${encodeURIComponent(postcode)}&productId=${encodeURIComponent(productId)}`,
+    DeliveryEstimateSchema,
   );
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to check delivery');
-  }
-
-  return data;
 }
