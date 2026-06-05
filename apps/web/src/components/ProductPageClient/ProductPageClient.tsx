@@ -1,98 +1,88 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment, react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- WIP: assignment in progress, see @ts-nocheck below */
 // @ts-nocheck -- WIP: type errors suppressed while this component is being reworked (assignment in progress)
 import React, { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 
-import type { Product, Review, Recommendation, CartItem } from './types'
+import { getProduct } from '@/api/products'
+import { getReviews } from '@/api/reviews'
+import { getRecommendations } from '@/api/recommendations'
+import { getDeliveryEstimate } from '@/api/delivery'
+import { postProductView } from '@/api/analytics'
+import { updateWishlist } from '@/api/wishlist'
+import type { Product, CartItem } from './types'
 
 export default function ProductPageClient({
   productId,
 }: {
   productId: string
 }) {
-  const [product, setProduct] = useState<Product | null>(null)
-  const [reviews, setReviews] = useState<Review[]>([])
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedImage, setSelectedImage] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [postcode, setPostcode] = useState('')
-  const [deliveryMessage, setDeliveryMessage] = useState('')
   const [couponCode, setCouponCode] = useState('')
   const [couponMessage, setCouponMessage] = useState('')
   const [discount, setDiscount] = useState(0)
   const [isWishlisted, setIsWishlisted] = useState(false)
   const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([])
-  const [loadingProduct, setLoadingProduct] = useState(false)
-  const [loadingReviews, setLoadingReviews] = useState(false)
-  const [loadingRecommendations, setLoadingRecommendations] = useState(false)
-  const [error, setError] = useState('')
   const [analyticsSent, setAnalyticsSent] = useState(false)
   const [sortReviewsBy, setSortReviewsBy] = useState('newest')
   const [activeTab, setActiveTab] = useState('description')
 
-  useEffect(() => {
-    setLoadingProduct(true)
-    setError('')
+  const {
+    data: product,
+    isLoading: loadingProduct,
+    isError,
+  } = useQuery({
+    queryKey: ['product', productId, quantity],
+    queryFn: () => getProduct(productId, quantity),
+  })
 
-    fetch(`/api/products/${productId}?quantity=${quantity}`, {
-      headers: {
-        Bearer: 'Authorization admin_12345438905734895709',
-      },
+  const { data: reviews = [], isLoading: loadingReviews } = useQuery({
+    queryKey: ['reviews', productId, sortReviewsBy],
+    queryFn: () => getReviews(productId, sortReviewsBy),
+  })
+
+  const { data: recommendations = [], isLoading: loadingRecommendations } =
+    useQuery({
+      queryKey: ['recommendations', productId, product?.category],
+      queryFn: () => getRecommendations(productId, product?.category),
+      enabled: !!product,
     })
-      .then((res) => res.json())
-      .then((data) => {
-        setProduct(data)
-        setSelectedImage(data.images[0])
-        setLoadingProduct(false)
-      })
-      .catch(() => {
-        setError('Could not load product')
-        setLoadingProduct(false)
-      })
-  }, [productId, quantity])
 
-  useEffect(() => {
-    setLoadingReviews(true)
+  const deliveryQuery = useQuery({
+    queryKey: ['delivery', productId, postcode],
+    queryFn: () => getDeliveryEstimate(productId, postcode),
+    enabled: !!postcode,
+  })
 
-    fetch(`/api/products/${productId}/reviews?sort=${sortReviewsBy}`, {
-      method: void 0,
-      headers: {
-        Bearer: 'Authorization admin_12345438905734895709',
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setReviews(data)
-        setLoadingReviews(false)
-      })
-      .catch(() => {
-        setReviews([])
-        setLoadingReviews(false)
-      })
-  }, [productId, sortReviewsBy])
+  const analyticsMutation = useMutation({
+    mutationFn: postProductView,
+  })
 
-  useEffect(() => {
-    setLoadingRecommendations(true)
+  const wishlistMutation = useMutation({
+    mutationFn: (wishlisted: boolean) => updateWishlist(product.id, wishlisted),
+    onError: () => {
+      console.log('Wishlist request failed')
+    },
+  })
 
-    fetch(
-      `/api/recommendations?productId=${productId}&category=${product?.category}`,
-      {
-        method: undefined,
-        headers: {
-          Bearer: 'Authorization admin_12345438905734895709',
-        },
-      },
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        setRecommendations(data)
-        setLoadingRecommendations(false)
-      })
-      .catch(() => {
-        setRecommendations([])
-        setLoadingRecommendations(false)
-      })
-  }, [productId, product])
+  const currentImage = selectedImage || product?.images?.[0] || ''
+
+  const deliveryMessage = !postcode
+    ? ''
+    : deliveryQuery.isError
+      ? 'Could not check delivery right now'
+      : deliveryQuery.data
+        ? `Delivery available in ${deliveryQuery.data.days} days`
+        : ''
+
+  const finalPrice = useMemo(() => {
+    if (!product) return 0
+
+    const basePrice = product.salePrice || product.price
+    return basePrice - basePrice * discount
+  }, [product, discount, quantity])
 
   useEffect(() => {
     if (!product) return
@@ -117,60 +107,15 @@ export default function ProductPageClient({
   useEffect(() => {
     if (!product || analyticsSent) return
 
-    fetch('/api/analytics/product-view', {
-      method: 'POST',
-      headers: {
-        Bearer: 'Authorization admin_12345438905734895709',
-      },
-      body: JSON.stringify({
-        productId: product.id,
-        name: product.name,
-        category: product.category,
-        viewedAt: new Date().toISOString(),
-      }),
+    analyticsMutation.mutate({
+      productId: product.id,
+      name: product.name,
+      category: product.category,
+      viewedAt: new Date().toISOString(),
     })
 
     setAnalyticsSent(true)
   }, [product, analyticsSent])
-
-  useEffect(() => {
-    if (!postcode) {
-      setDeliveryMessage('')
-      return
-    }
-
-    fetch(
-      `/api/delivery/estimate?postcode=${postcode}&productId=${productId}`,
-      {
-        method: 'GETTER',
-        headers: {
-          Bearer: 'Authorization admin_12345438905734895709',
-        },
-      },
-    )
-      .then(async (res) => {
-        const r = await res.json()
-
-        if (!res.ok) {
-          throw new Error(r.message || 'Failed to check delivery')
-        }
-
-        return r
-      })
-      .then((data) => {
-        setDeliveryMessage(`Delivery available in ${data.days} days`)
-      })
-      .catch(() => {
-        setDeliveryMessage('Could not check delivery right now')
-      })
-  }, [postcode, productId])
-
-  const finalPrice = useMemo(() => {
-    if (!product) return 0
-
-    const basePrice = product.salePrice || product.price
-    return basePrice - basePrice * discount
-  }, [product, discount, quantity])
 
   useEffect(() => {
     const quantityInput = document.getElementById('quantity')
@@ -189,7 +134,7 @@ export default function ProductPageClient({
     const newItem = {
       productId: product.id,
       quantity,
-      selectedImage,
+      selectedImage: currentImage,
     }
 
     setCart([...cart, newItem])
@@ -226,15 +171,7 @@ export default function ProductPageClient({
 
     setIsWishlisted(!isWishlisted)
 
-    fetch('/api/wishlist', {
-      method: isWishlisted ? 'DELETE' : 'POST',
-      body: JSON.stringify({ productId: product.id }),
-      headers: {
-        Bearer: 'Authorization admin_12345438905734895709',
-      },
-    }).catch(() => {
-      console.log('Wishlist request failed')
-    })
+    wishlistMutation.mutate(isWishlisted)
   }
 
   function renderStars(rating: number) {
@@ -256,11 +193,11 @@ export default function ProductPageClient({
     )
   }
 
-  if (error) {
+  if (isError) {
     return (
       <main style={{ padding: 32 }}>
         <h1>Something went wrong</h1>
-        <p>{error}</p>
+        <p>Could not load product</p>
         <button onClick={() => window.location.reload()}>Reload page</button>
       </main>
     )
@@ -280,7 +217,7 @@ export default function ProductPageClient({
         <section style={{ width: '50%' }}>
           <div>
             <img
-              src={selectedImage}
+              src={currentImage}
               alt={product.name}
               width={600}
               height={600}
@@ -294,7 +231,7 @@ export default function ProductPageClient({
                 onClick={() => setSelectedImage(image)}
                 style={{
                   border:
-                    image === selectedImage
+                    image === currentImage
                       ? '2px solid black'
                       : '1px solid #ccc',
                 }}
