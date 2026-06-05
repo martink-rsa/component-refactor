@@ -2,52 +2,17 @@
 // @ts-nocheck -- WIP: type errors suppressed while this component is being reworked (assignment in progress)
 import React, { useEffect, useMemo, useState } from 'react'
 
-type Item = {
-  id: string
-  name: string
-  sku: string
-  description: string
-  price: number
-  salePrice?: number
-  currency: string
-  stock: number
-  images: string[]
-  rating: number
-  reviewCount: number
-  category: string
-  tags: string[]
-}
-
-type R = {
-  id: string
-  author: string
-  rating: number
-  body: string
-  createdAt: string
-}
-
-type Rec = {
-  id: string
-  name: string
-  price: number
-  image: string
-}
-
-type CItem = {
-  productId: string
-  quantity: number
-  selectedImage: string
-}
+import type { Product, Review, Recommendation, CartItem } from './types'
 
 export default function ProductPageClient({
   productId,
 }: {
   productId: string
 }) {
-  const [product, setProduct] = useState<Item | null>(null)
-  const [reviews, setReviews] = useState<R[]>([])
-  const [recommendations, setRecommendations] = useState<Rec[]>([])
-  const [cart, setCart] = useState<CItem[]>([])
+  const [product, setProduct] = useState<Product | null>(null)
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
   const [selectedImage, setSelectedImage] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [postcode, setPostcode] = useState('')
@@ -56,7 +21,7 @@ export default function ProductPageClient({
   const [couponMessage, setCouponMessage] = useState('')
   const [discount, setDiscount] = useState(0)
   const [isWishlisted, setIsWishlisted] = useState(false)
-  const [recentlyViewed, setRecentlyViewed] = useState<Item[]>([])
+  const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([])
   const [loadingProduct, setLoadingProduct] = useState(false)
   const [loadingReviews, setLoadingReviews] = useState(false)
   const [loadingRecommendations, setLoadingRecommendations] = useState(false)
