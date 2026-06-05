@@ -9,7 +9,7 @@ describe('productUiStore', () => {
       store.getState().setCouponCode('WELCOME10');
       store.getState().applyCoupon();
 
-      expect(store.getState().discount).toBe(1);
+      expect(store.getState().discount).toBe(0.1);
       expect(store.getState().couponMessage).toBe('Coupon applied');
     });
 
@@ -61,9 +61,9 @@ describe('productUiStore', () => {
 
   it('starts each instance from a clean slate (state is not shared)', () => {
     const first = createProductUiStore();
-    first.getState().setActiveTab('reviews');
+    first.getState().setCouponCode('SAVE20');
 
     const second = createProductUiStore();
-    expect(second.getState().activeTab).toBe('description');
+    expect(second.getState().couponCode).toBe('');
   });
 });

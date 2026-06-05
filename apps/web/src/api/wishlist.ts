@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { apiFetch } from './client';
 
 export function updateWishlist(
   productId: string,
@@ -7,5 +7,5 @@ export function updateWishlist(
   return apiFetch('/api/wishlist', {
     method: wishlisted ? 'DELETE' : 'POST',
     body: JSON.stringify({ productId }),
-  })
+  });
 }

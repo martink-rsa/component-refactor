@@ -13,7 +13,7 @@ type CartState = {
  * Global, persistent shopping cart.
  *
  * Replaces the local `cart` state plus the manual localStorage load/save
- * effects that previously lived in ProductPageClient — persistence is handled
+ * effects that previously lived in ProductPageClient. Persistence is handled
  * declaratively by the `persist` middleware.
  */
 export const useCartStore = create<CartState>()(
