@@ -1,5 +1,5 @@
-import type { Recommendation } from '@/components/ProductPageClient/types'
-import { apiFetch } from './client'
+import type { Recommendation } from '@/types/product';
+import { apiFetch } from './client';
 
 export async function getRecommendations(
   productId: string,
@@ -7,7 +7,7 @@ export async function getRecommendations(
 ): Promise<Recommendation[]> {
   const res = await apiFetch(
     `/api/recommendations?productId=${productId}&category=${category}`,
-  )
+  );
 
-  return res.json()
+  return res.json();
 }

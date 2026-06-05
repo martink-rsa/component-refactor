@@ -1,33 +1,51 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment, react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- WIP: assignment in progress, see @ts-nocheck below */
-// @ts-nocheck -- WIP: type errors suppressed while this component is being reworked (assignment in progress)
-import React, { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
-import { getProduct } from '@/api/products'
-import { getReviews } from '@/api/reviews'
-import { getRecommendations } from '@/api/recommendations'
-import { getDeliveryEstimate } from '@/api/delivery'
-import { postProductView } from '@/api/analytics'
-import { updateWishlist } from '@/api/wishlist'
-import type { Product, CartItem } from './types'
+import { getProduct } from '@/api/products';
+import { getReviews } from '@/api/reviews';
+import { getRecommendations } from '@/api/recommendations';
+import { getDeliveryEstimate } from '@/api/delivery';
+import { postProductView } from '@/api/analytics';
+import { updateWishlist } from '@/api/wishlist';
+import { useCartStore, useRecentlyViewedStore } from '@/stores';
+
+import { ProductUiStoreProvider } from './ProductUiStoreProvider';
+import { useProductUiStore, type ReviewSort } from './productUiStore';
 
 export default function ProductPageClient({
   productId,
 }: {
-  productId: string
+  productId: string;
 }) {
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [selectedImage, setSelectedImage] = useState('')
-  const [quantity, setQuantity] = useState(1)
-  const [postcode, setPostcode] = useState('')
-  const [couponCode, setCouponCode] = useState('')
-  const [couponMessage, setCouponMessage] = useState('')
-  const [discount, setDiscount] = useState(0)
-  const [isWishlisted, setIsWishlisted] = useState(false)
-  const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([])
-  const [analyticsSent, setAnalyticsSent] = useState(false)
-  const [sortReviewsBy, setSortReviewsBy] = useState('newest')
-  const [activeTab, setActiveTab] = useState('description')
+  return (
+    <ProductUiStoreProvider key={productId}>
+      <ProductPageView productId={productId} />
+    </ProductUiStoreProvider>
+  );
+}
+
+function ProductPageView({ productId }: { productId: string }) {
+  const selectedImage = useProductUiStore((state) => state.selectedImage);
+  const setSelectedImage = useProductUiStore((state) => state.setSelectedImage);
+  const quantity = useProductUiStore((state) => state.quantity);
+  const setQuantity = useProductUiStore((state) => state.setQuantity);
+  const postcode = useProductUiStore((state) => state.postcode);
+  const setPostcode = useProductUiStore((state) => state.setPostcode);
+  const couponCode = useProductUiStore((state) => state.couponCode);
+  const setCouponCode = useProductUiStore((state) => state.setCouponCode);
+  const couponMessage = useProductUiStore((state) => state.couponMessage);
+  const applyCoupon = useProductUiStore((state) => state.applyCoupon);
+  const discount = useProductUiStore((state) => state.discount);
+  const isWishlisted = useProductUiStore((state) => state.isWishlisted);
+  const setWishlisted = useProductUiStore((state) => state.setWishlisted);
+  const sortReviewsBy = useProductUiStore((state) => state.sortReviewsBy);
+  const setSortReviewsBy = useProductUiStore((state) => state.setSortReviewsBy);
+  const activeTab = useProductUiStore((state) => state.activeTab);
+  const setActiveTab = useProductUiStore((state) => state.setActiveTab);
+
+  const addItem = useCartStore((state) => state.addItem);
+  const recentlyViewed = useRecentlyViewedStore((state) => state.items);
+  const addProduct = useRecentlyViewedStore((state) => state.addProduct);
 
   const {
     data: product,
@@ -36,38 +54,39 @@ export default function ProductPageClient({
   } = useQuery({
     queryKey: ['product', productId, quantity],
     queryFn: () => getProduct(productId, quantity),
-  })
+  });
 
   const { data: reviews = [], isLoading: loadingReviews } = useQuery({
     queryKey: ['reviews', productId, sortReviewsBy],
     queryFn: () => getReviews(productId, sortReviewsBy),
-  })
+  });
 
   const { data: recommendations = [], isLoading: loadingRecommendations } =
     useQuery({
       queryKey: ['recommendations', productId, product?.category],
-      queryFn: () => getRecommendations(productId, product?.category),
+      queryFn: () => getRecommendations(productId, product?.category ?? ''),
       enabled: !!product,
-    })
+    });
 
   const deliveryQuery = useQuery({
     queryKey: ['delivery', productId, postcode],
     queryFn: () => getDeliveryEstimate(productId, postcode),
     enabled: !!postcode,
-  })
+  });
 
-  const analyticsMutation = useMutation({
+  const { mutate: trackProductView } = useMutation({
     mutationFn: postProductView,
-  })
+  });
 
-  const wishlistMutation = useMutation({
-    mutationFn: (wishlisted: boolean) => updateWishlist(product.id, wishlisted),
+  const { mutate: mutateWishlist } = useMutation({
+    mutationFn: (wishlisted: boolean) =>
+      updateWishlist(product!.id, wishlisted),
     onError: () => {
-      console.log('Wishlist request failed')
+      console.log('Wishlist request failed');
     },
-  })
+  });
 
-  const currentImage = selectedImage || product?.images?.[0] || ''
+  const currentImage = selectedImage || product?.images?.[0] || '';
 
   const deliveryMessage = !postcode
     ? ''
@@ -75,114 +94,64 @@ export default function ProductPageClient({
       ? 'Could not check delivery right now'
       : deliveryQuery.data
         ? `Delivery available in ${deliveryQuery.data.days} days`
-        : ''
+        : '';
 
   const finalPrice = useMemo(() => {
-    if (!product) return 0
+    if (!product) return 0;
 
-    const basePrice = product.salePrice || product.price
-    return basePrice - basePrice * discount
-  }, [product, discount, quantity])
-
-  useEffect(() => {
-    if (!product) return
-
-    const next = [product, ...recentlyViewed].slice(0, 5)
-    setRecentlyViewed(next)
-    localStorage.setItem('recentlyViewed', JSON.stringify(next))
-  }, [product, recentlyViewed])
+    const basePrice = product.salePrice || product.price;
+    return basePrice - basePrice * discount;
+  }, [product, discount]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('cart')
-
-    if (saved) {
-      setCart(JSON.parse(saved))
+    if (product) {
+      addProduct(product);
     }
-  }, [])
+  }, [product, addProduct]);
+
+  const analyticsSentFor = useRef<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart))
-  }, [cart])
+    if (!product || analyticsSentFor.current === product.id) return;
 
-  useEffect(() => {
-    if (!product || analyticsSent) return
+    analyticsSentFor.current = product.id;
 
-    analyticsMutation.mutate({
+    trackProductView({
       productId: product.id,
       name: product.name,
       category: product.category,
       viewedAt: new Date().toISOString(),
-    })
-
-    setAnalyticsSent(true)
-  }, [product, analyticsSent])
-
-  useEffect(() => {
-    const quantityInput = document.getElementById('quantity')
-
-    quantityInput?.addEventListener('change', (event) => {
-      const target = event.target as HTMLInputElement
-      const value = parseInt(target.value, 10)
-
-      setQuantity(Number(isNaN(value) || value < 1 ? 1 : value))
-    })
-  }, [])
+    });
+  }, [product, trackProductView]);
 
   function addToCart() {
-    if (!product) return
+    if (!product) return;
 
-    const newItem = {
+    addItem({
       productId: product.id,
       quantity,
       selectedImage: currentImage,
-    }
+    });
 
-    setCart([...cart, newItem])
-
-    localStorage.setItem('cart', JSON.stringify([...cart, newItem]))
-
-    alert('Added to cart')
+    alert('Added to cart');
   }
 
-  function apply() {
-    if (couponCode === 'WELCOME10') {
-      setDiscount(1)
-      setCouponMessage('Coupon applied')
-      return
-    }
+  function toggleWishlist() {
+    if (!product) return;
 
-    if (couponCode === 'SAVE20') {
-      setDiscount(0.2)
-      setCouponMessage('Coupon applied')
-      return
-    }
-
-    if (couponCode.trim().length === 0) {
-      setCouponMessage('Enter a coupon code')
-      return
-    }
-
-    setDiscount(0)
-    setCouponMessage('Invalid coupon')
-  }
-
-  function toggle() {
-    if (!product) return
-
-    setIsWishlisted(!isWishlisted)
-
-    wishlistMutation.mutate(isWishlisted)
+    setWishlisted(!isWishlisted);
+    mutateWishlist(isWishlisted);
   }
 
   function renderStars(rating: number) {
-    const rounded = Math.round(rating)
+    const rounded = Math.round(rating);
 
     return (
       <span aria-label={`${rating} out of 5 stars`}>
         {'★'.repeat(rounded)}
         {'☆'.repeat(5 - rounded)}
       </span>
-    )
+    );
   }
 
   if (loadingProduct) {
@@ -190,7 +159,7 @@ export default function ProductPageClient({
       <main style={{ padding: 32 }}>
         <p>Loading product...</p>
       </main>
-    )
+    );
   }
 
   if (isError) {
@@ -200,7 +169,7 @@ export default function ProductPageClient({
         <p>Could not load product</p>
         <button onClick={() => window.location.reload()}>Reload page</button>
       </main>
-    )
+    );
   }
 
   if (!product) {
@@ -208,7 +177,7 @@ export default function ProductPageClient({
       <main style={{ padding: 32 }}>
         <p>No product found.</p>
       </main>
-    )
+    );
   }
 
   return (
@@ -236,7 +205,7 @@ export default function ProductPageClient({
                       : '1px solid #ccc',
                 }}
               >
-                <Image src={image} alt="" width={80} height={80} />
+                <img src={image} alt="" width={80} height={80} />
               </button>
             ))}
           </div>
@@ -276,7 +245,15 @@ export default function ProductPageClient({
           <div style={{ marginTop: 24 }}>
             <label>
               Quantity
-              <input type="number" value={quantity} id="quantity" min={1} />
+              <input
+                type="number"
+                id="quantity"
+                min={1}
+                value={quantity}
+                onChange={(event) =>
+                  setQuantity(parseInt(event.target.value, 10))
+                }
+              />
             </label>
           </div>
 
@@ -289,7 +266,7 @@ export default function ProductPageClient({
                 placeholder="Enter coupon"
               />
             </label>
-            <button onClick={apply}>Apply</button>
+            <button onClick={applyCoupon}>Apply</button>
             <p>{couponMessage}</p>
           </div>
 
@@ -310,7 +287,7 @@ export default function ProductPageClient({
               Add to cart
             </button>
 
-            <button onClick={toggle}>
+            <button onClick={toggleWishlist}>
               {isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
             </button>
           </div>
@@ -346,7 +323,9 @@ export default function ProductPageClient({
               Sort by
               <select
                 value={sortReviewsBy}
-                onChange={(event) => setSortReviewsBy(event.target.value)}
+                onChange={(event) =>
+                  setSortReviewsBy(event.target.value as ReviewSort)
+                }
               >
                 <option value="newest">Newest</option>
                 <option value="highest">Highest rated</option>
@@ -420,5 +399,5 @@ export default function ProductPageClient({
         ))}
       </section>
     </main>
-  )
+  );
 }
